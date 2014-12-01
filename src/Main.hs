@@ -5,6 +5,7 @@ module Main where
 import Simulation.Aivika
 import Simulation.Aivika.Queue
 import Control.Monad
+import Data.Functor
 import Util
 
 data Input = Input {
@@ -15,9 +16,9 @@ data Input = Input {
 
 testInput :: Input
 testInput = Input {
-    generationTime = 80,
+    generationTime = 10,
     processingTime = 50,
-    bufferCapacity = 10
+    bufferCapacity = 2
 }
 
 data Output = Output {
@@ -35,31 +36,37 @@ main = print =<< (flip runSimulation specs $ runEventInStartTime $ simulateProce
     where specs = Specs {
               spcStartTime = 0.0,
               spcStopTime = 1000.0,
-              spcDT = 1.0,
+              spcDT = 10,
               spcMethod = RungeKutta4,
               spcGeneratorType = SimpleGenerator
           }   
 
 simulateProcess :: Input -> Event Output
 simulateProcess Input{..} = do
-    (processorProc, buffer) <- processor
+    (processorProc, buffer) <- processor 
+    generatorProc <- generator buffer
     liftSimulation $ do
         runProcessInStartTime processorProc
-        runProcessInStartTime $ generator buffer
+        runProcessInStartTime generatorProc
         runEventInStopTime $ do
-           
-            return Output {
-                failChance = 0.0,
-                queueSize = 0.0,
-                requestsCount = 0.0,
-                awaitingTime = 0.0
-            }
+           sizeStats <- queueCountStats buffer
+           lostCount <- fromIntegral <$> enqueueLostCount buffer
+           totalCount <- fromIntegral <$> enqueueCount buffer
+           dequed <- fromIntegral <$> dequeueCount buffer
+           awaiting <- queueWaitTime buffer 
+           return Output {
+               failChance = lostCount / (lostCount + totalCount),
+               queueSize = timingStatsMean sizeStats,
+               requestsCount = dequed, --!!!!! HERE 
+               awaitingTime = samplingStatsMean awaiting 
+           }
     where
-    generator :: Buffer Request -> Process ()
-    generator buffer = forever $ do
-       holdExponential generationTime
-       enqueue buffer Request
+    generator :: Buffer Request -> Event (Process ())
+    generator buffer = return $ forever $ do
+           holdExponential generationTime
+           liftEvent $ enqueueOrLost_ buffer Request
 
     processor :: Event (Process (), Buffer Request)
     processor = withBuffer bufferCapacity $ \buffer-> forever $ do
        dequeue buffer
+       holdExponential processingTime

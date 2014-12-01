@@ -17,3 +17,4 @@ withBuffer :: Int -> (Buffer a -> Process b) -> Event (Process b, Buffer a)
 withBuffer capacity f = do
    buffer <- newBuffer capacity
    return (f buffer, buffer)
+
