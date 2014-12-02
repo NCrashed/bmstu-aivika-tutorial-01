@@ -12,7 +12,7 @@ testInput = Input {
 }
 
 main :: IO ()
-main = print =<< runSimulation (runEventInStartTime $ simulateProcess testInput) specs
+main = print =<< runSimulation (simulate testInput) specs
     where specs = Specs {
               spcStartTime = 0.0,
               spcStopTime = 1000.0,
