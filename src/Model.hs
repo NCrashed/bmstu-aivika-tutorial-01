@@ -12,8 +12,8 @@ import Task
 
 data Request = Request
 
-simulateProcess :: Input -> Event Output
-simulateProcess Input{..} = do
+simulate :: Input -> Simulation Output
+simulate Input{..} = runEventInStartTime $ do
     rec (processorProc, buffer) <- processor stats
         (generatorProc, stats) <- generator buffer
     liftSimulation $ do
