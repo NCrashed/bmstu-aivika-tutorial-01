@@ -10,11 +10,13 @@ import Data.Functor
 import Util
 import Task
 
-data Request = Request
+-- | Тип, описывающий заявку, внутри хранит время, когда заявка была создана
+data Request = Request Double
 
 simulate :: Input -> Simulation Output
-simulate Input{..} = runEventInStartTime $ do
-    rec (processorProc, buffer) <- processor stats
+simulate input@Input{..} = runEventInStartTime $ do
+    processorTotalTime <- liftSimulation $ newVar 0
+    rec (processorProc, buffer) <- processor stats processorTotalTime
         (generatorProc, stats) <- generator buffer
     liftSimulation $ do
         runProcessInStartTime processorProc
@@ -23,26 +25,34 @@ simulate Input{..} = runEventInStartTime $ do
            sizeStats <- queueCountStats buffer
            lostCount <- fromIntegral <$> enqueueLostCount buffer
            totalCount <- fromIntegral <$> enqueueCount buffer
-           awaiting <- queueWaitTime buffer 
-           requestsCountStats <- statsFromVar stats 
+           awaiting <- queueWaitTime buffer
+           requestsCountStats <- statsFromVar stats
+           totalTimeStats <- statsFromVar processorTotalTime
            return Output {
                failChance = lostCount / (lostCount + totalCount),
                queueSize = timingStatsMean sizeStats,
                requestsCount = samplingStatsMean requestsCountStats,
-               awaitingTime = samplingStatsMean awaiting 
+               awaitingTime = samplingStatsMean awaiting,
+               totalTime = samplingStatsMean totalTimeStats,
+               usedInput = input
            }
     where
     generator :: Buffer Request -> Event (Process (), Var Int)
     generator buffer = do
         stats <- liftSimulation $ newVar 0
         return $ (, stats) $ forever $ do
-           holdExponential generationTime
+           holdByDistribution generationDistribution
+           timestamp <- liftDynamics time
            liftEvent $ do
-               modifyVar stats (+1)
-               enqueueOrLost_ buffer Request
+               modifyVar stats (+1) 
+               enqueueOrLost_ buffer $ Request timestamp
 
-    processor :: Var Int -> Event (Process (), Buffer Request)
-    processor stats = withBuffer bufferCapacity $ \buffer-> forever $ do
-       _ <- dequeue buffer
-       holdExponential processingTime
-       liftEvent $ modifyVar stats (subtract 1)
+    processor :: Var Int -> Var Double -> Event (Process (), Buffer Request)
+    processor stats totalTimeVar = withBuffer bufferCapacity $ \buffer-> forever $ do
+       Request timestamp <- dequeue buffer
+       holdByDistribution processingDistribution
+       currentTime <- liftDynamics time
+       liftEvent $ do
+         writeVar totalTimeVar (currentTime - timestamp)
+         modifyVar stats (subtract 1)
+      
