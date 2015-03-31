@@ -37,7 +37,10 @@ randomHyperExponential pairs = liftIO $ do
 generationDistr :: String -> [Double] -> Parameter Double
 generationDistr "exponential" [meanTime] = randomExponential meanTime
 generationDistr "exponential" _ = error "Нужен 1 параметр экспоненциальному распределению"
-generationDistr "erlang" [theta, k] = randomErlang theta (floor k)
+generationDistr "erlang" [theta, k] = do
+    let ki = floor k
+    val <- randomErlang theta ki
+    return $ val / fromIntegral ki
 generationDistr "erlang" _ = error "Нужно 2 параметра эрланговскому распределению: theta (плавающая запятая) и k (целочисленное)"
 generationDistr "normal" [mu, sigma] = randomNormal mu sigma
 generationDistr "normal" _ = error "Нужно 2 параметра нормальному распределению: mu (математическое ожидание) и sigma (дисперсия)"
