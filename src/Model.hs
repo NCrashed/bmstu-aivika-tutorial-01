@@ -27,14 +27,14 @@ simulate input@Input{..} = runEventInStartTime $ do
            awaiting <- queueWaitTime buffer
            totalTimeStats <- statsFromVar processorTotalTime
            operationTime <- readRef processorOperationTime
-           return Output {
-               failChance = lostCount / (lostCount + totalCount),
-               queueSize = timingStatsMean sizeStats,
-               requestsCount = timingStatsMean sizeStats + operationTime / simulationTime,
-               awaitingTime = samplingStatsMean awaiting,
-               totalTime = samplingStatsMean totalTimeStats,
-               usedInput = input
-           }
+           
+           let failChance' = lostCount / (lostCount + totalCount)
+               queueSize' = timingStatsMean sizeStats
+               systemLoad' = operationTime / simulationTime
+               requestsCount' = queueSize' + systemLoad'
+               awaitingTime' = samplingStatsMean awaiting
+               totalTime' = samplingStatsMean totalTimeStats
+           return $ Output failChance' queueSize' systemLoad' requestsCount' awaitingTime' totalTime' input
     where
     generator :: Buffer Request -> Event (Process ())
     generator buffer = do
