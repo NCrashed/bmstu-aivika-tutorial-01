@@ -1,6 +1,4 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE RecursiveDo #-}
 module Model where
 
 import Simulation.Aivika
@@ -16,8 +14,9 @@ data Request = Request Double
 simulate :: Input -> Simulation Output
 simulate input@Input{..} = runEventInStartTime $ do
     processorTotalTime <- liftSimulation $ newVar 0
-    rec (processorProc, buffer) <- processor stats processorTotalTime
-        (generatorProc, stats) <- generator buffer
+    processorOperationTime <- liftSimulation $ newRef 0
+    (processorProc, buffer) <- processor processorTotalTime processorOperationTime
+    generatorProc <- generator buffer
     liftSimulation $ do
         runProcessInStartTime processorProc
         runProcessInStartTime generatorProc
@@ -26,33 +25,31 @@ simulate input@Input{..} = runEventInStartTime $ do
            lostCount <- fromIntegral <$> enqueueLostCount buffer
            totalCount <- fromIntegral <$> enqueueCount buffer
            awaiting <- queueWaitTime buffer
-           requestsCountStats <- statsFromVar stats
            totalTimeStats <- statsFromVar processorTotalTime
+           operationTime <- readRef processorOperationTime
            return Output {
                failChance = lostCount / (lostCount + totalCount),
                queueSize = timingStatsMean sizeStats,
-               requestsCount = samplingStatsMean requestsCountStats,
+               requestsCount = timingStatsMean sizeStats + operationTime / simulationTime,
                awaitingTime = samplingStatsMean awaiting,
                totalTime = samplingStatsMean totalTimeStats,
                usedInput = input
            }
     where
-    generator :: Buffer Request -> Event (Process (), Var Int)
+    generator :: Buffer Request -> Event (Process ())
     generator buffer = do
-        stats <- liftSimulation $ newVar 0
-        return $ (, stats) $ forever $ do
-           holdByDistribution generationDistribution
-           timestamp <- liftDynamics time
-           liftEvent $ do
-               modifyVar stats (+1) 
-               enqueueOrLost_ buffer $ Request timestamp
+        return $ forever $ do
+           htime <- holdByDistribution generationDistribution
+           when (htime >= 0) $ do
+               timestamp <- liftDynamics time
+               liftEvent $ do 
+                   enqueueOrLost_ buffer $ Request timestamp
 
-    processor :: Var Int -> Var Double -> Event (Process (), Buffer Request)
-    processor stats totalTimeVar = withBuffer bufferCapacity $ \buffer-> forever $ do
+    processor :: Var Double -> Ref Double -> Event (Process (), Buffer Request)
+    processor totalTimeVar operationTimeVar = withBuffer bufferCapacity $ \buffer-> forever $ do
        Request timestamp <- dequeue buffer
-       holdByDistribution processingDistribution
+       operationTime <- holdPositive processingDistribution
        currentTime <- liftDynamics time
        liftEvent $ do
          writeVar totalTimeVar (currentTime - timestamp)
-         modifyVar stats (subtract 1)
-      
+         modifyRef operationTimeVar (+operationTime)

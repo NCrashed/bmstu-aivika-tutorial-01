@@ -4,17 +4,26 @@ import Simulation.Aivika
 import Simulation.Aivika.Queue
 import Simulation.Aivika.Unboxed
 import Data.Array
+import Control.Monad
 import Control.Monad.Random
 import Control.Monad.IO.Class
 import Control.Arrow
 
 type Buffer a = FCFSQueue a
 
-holdByDistribution :: (Parameter Double) -> Process ()
+holdByDistribution :: (Parameter Double) -> Process Double
 holdByDistribution f = do
     htime <- liftParameter f
-    holdProcess htime
+    when (htime > 0) $ holdProcess htime
+    return htime
 
+holdPositive :: (Parameter Double) -> Process Double
+holdPositive f = do
+    htime <- holdByDistribution f
+    if htime >= 0
+    then return htime
+    else holdPositive f
+    
 newBuffer :: Int -> Event (Buffer a)
 newBuffer = newFCFSQueue 
 
