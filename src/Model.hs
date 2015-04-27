@@ -49,22 +49,29 @@ cascadeSMO input = do
   
 atomSMO :: Input -> Int -> Buffer Request -> Event (Buffer Request, Event PartialOutput)
 atomSMO input buffCap nextBuffer = do 
-  (processorProc, buffer) <- processor nextBuffer
+  processorOperationTime <- liftSimulation $ newRef 0
+  (processorProc, buffer) <- processor nextBuffer processorOperationTime
   liftSimulation $ runProcessInStartTime processorProc
   let failChance = do
         lostCount <- fromIntegral <$> enqueueLostCount buffer
         totalCount <- fromIntegral <$> enqueueCount buffer
-        return $ lostCount / (lostCount + totalCount)
+        return $! lostCount / (lostCount + totalCount)
   let qSize = do
         sizeStats <- queueCountStats buffer
-        return $ timingStatsMean sizeStats
-  return (buffer, PartialOutput <$> failChance <*> qSize)
+        return $! timingStatsMean sizeStats
+  let sLoad = do
+        operationTime <- readRef processorOperationTime
+        return $! operationTime / simulationTime input
+  return (buffer, PartialOutput <$> failChance <*> qSize <*> sLoad)
   where
-    processor :: Buffer Request -> Event (Process (), Buffer Request)
-    processor outBuffer = withBuffer buffCap $ \buffer-> forever $ do
+    processor :: Buffer Request -> Ref Double -> Event (Process (), Buffer Request)
+    processor outBuffer operationTimeVar = withBuffer buffCap $ \buffer-> forever $ do
       r <- dequeue buffer
-      _ <- holdPositive $ processingDistribution input
-      liftEvent $ enqueueOrLost_ outBuffer r
+      operationTime <- holdPositive $ processingDistribution input
+      liftEvent $ do
+        modifyRef operationTimeVar (+operationTime)
+        enqueueOrLost_ outBuffer r
+         
 {-
 simulate :: Input -> Simulation Output
 simulate input@Input{..} = runEventInStartTime $ do
