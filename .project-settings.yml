@@ -11,6 +11,5 @@ cabal-file: project.cabal
 version: 1
 extra-packages: ! 'Hackage: aivika 3.0'
 ghc-args:
-- -fdefer-type-errors
 - -Wall
 excluded-modules: []

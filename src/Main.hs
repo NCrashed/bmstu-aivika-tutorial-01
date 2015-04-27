@@ -13,12 +13,12 @@ testInput = Input {
     -- каждому закону нужно указать список параметров
     -- для exponential нужен 1 параметр (среднее время между заявками)
     -- для других (erlang и т.д.) нужно по 2 параметра
-    generationDistribution = generationDistr "normal" [10, 20],
+    generationDistribution = generationDistr "erlang" [10, 2],
     -- | Закон распределения обработки заявок в обслуживающем автомате
     -- параметры аналогичны.
-    processingDistribution = generationDistr "exponential" [50],
+    processingDistribution = generationDistr "erlang" [20, 2],
     -- | Емкость буффера
-    bufferCapacity = 3,
+    bufferCapacity = [3, 3, 3],
     -- | Время иммитационного моделирования
     simulationTime = 500000.0,
     -- | Количество знаков после запятой в выводе результатов
