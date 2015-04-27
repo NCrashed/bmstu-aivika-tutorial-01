@@ -34,7 +34,7 @@ cascadeSMO input = do
   generator :: Buffer Request -> Event (Process ())
   generator buffer = do
     return $ forever $ do
-      htime <- holdByDistribution $ generationDistribution input
+      htime <- holdByDistribution $ snd $ generationDistribution input
       when (htime >= 0) $ do
         timestamp <- liftDynamics time
         liftEvent $ do 
@@ -65,7 +65,7 @@ atomSMO input buffCap nextBuffer = do
     processor :: Buffer Request -> Var Double -> Ref Double -> Event (Process (), Buffer Request)
     processor outBuffer totalTimeVar operationTimeVar = withBuffer buffCap $ \buffer-> forever $ do
       r@(Request timestamp) <- dequeue buffer
-      operationTime <- holdPositive $ processingDistribution input
+      operationTime <- holdPositive $ snd $ processingDistribution input
       currentTime <- liftDynamics time
       liftEvent $ do
         writeVar totalTimeVar (currentTime - timestamp)

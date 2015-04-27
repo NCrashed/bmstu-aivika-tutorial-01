@@ -6,13 +6,16 @@ import Simulation.Aivika
 import Data.Functor
 
 data Input = Input {
-    generationDistribution :: Parameter Double,
-    processingDistribution :: Parameter Double,
+    generationDistribution :: (String, Parameter Double),
+    processingDistribution :: (String, Parameter Double),
     bufferCapacity :: [Int],
     simulationTime :: Double,
     outputPrecision :: Int
 }
 
+instance Show Input where
+  show Input{..} = fst generationDistribution ++ "-" ++ fst processingDistribution ++ "-" ++ show bufferCapacity
+  
 data Output = Output {
     failChances :: [Double], -- ^ Вероятность отказа системы
     queueSizes :: [Double], -- ^ Средний размер буфера

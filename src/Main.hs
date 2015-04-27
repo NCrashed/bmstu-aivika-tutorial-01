@@ -1,10 +1,10 @@
 module Main where
 
-import Simulation.Aivika
 import Task
 import Model
 import Util
 import Tabular
+import Varying
 
 -- | Входные параметры модели
 testInput :: Input
@@ -17,8 +17,8 @@ testInput = Input {
     generationDistribution = generationDistr "erlang" [10, 2],
     -- | Закон распределения обработки заявок в обслуживающем автомате
     -- параметры аналогичны.
-    processingDistribution = generationDistr "erlang" [20, 2],
-    -- | Емкость буффера
+    processingDistribution = generationDistr "erlang" [10, 2],
+    -- | Емкость буфферов
     bufferCapacity = [3, 3, 3],
     -- | Время иммитационного моделирования
     simulationTime = 500000.0,
@@ -27,11 +27,8 @@ testInput = Input {
 }
 
 main :: IO ()
-main = putStrLn.prettyPrintOutput =<< runSimulation (simulate testInput) specs
-    where specs = Specs {
-              spcStartTime = 0.0,
-              spcStopTime = simulationTime testInput,
-              spcDT = 10,
-              spcMethod = RungeKutta4,
-              spcGeneratorType = SimpleGenerator
-          }   
+main = putStrLn.prettyPrintOutputs =<< simulateManyBuffers testInput
+    [ (generationDistr "erlang" [10, 2], generationDistr "erlang" [10, 2], [3, 3, 3])
+    , (generationDistr "erlang" [10, 2], generationDistr "erlang" [10, 2], [4, 3, 3])
+    , (generationDistr "erlang" [10, 2], generationDistr "erlang" [10, 2], [10, 3, 3])
+    ] simulate  
