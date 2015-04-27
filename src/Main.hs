@@ -4,6 +4,7 @@ import Simulation.Aivika
 import Task
 import Model
 import Util
+import Tabular
 
 -- | Входные параметры модели
 testInput :: Input
@@ -26,7 +27,7 @@ testInput = Input {
 }
 
 main :: IO ()
-main = print =<< runSimulation (simulate testInput) specs
+main = putStrLn.prettyPrintOutput =<< runSimulation (simulate testInput) specs
     where specs = Specs {
               spcStartTime = 0.0,
               spcStopTime = simulationTime testInput,

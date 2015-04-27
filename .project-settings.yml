@@ -9,7 +9,13 @@ environment: ghc-7.8-stable-14.09
 auto-hidden: []
 cabal-file: project.cabal
 version: 1
-extra-packages: ! 'Hackage: aivika 3.0'
+extra-packages: ! 'Hackage: html 1.0.1.2
+
+  Hackage: csv 0.1.2
+
+  Hackage: tabular 0.2.2.7
+
+  Hackage: aivika 3.0'
 ghc-args:
 - -Wall
 excluded-modules: []
