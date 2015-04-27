@@ -4,7 +4,7 @@ module Model where
 import Simulation.Aivika
 import Simulation.Aivika.Queue
 import Control.Monad
-import Data.Functor
+import Control.Applicative
 import Util
 import Task
 
@@ -13,19 +13,18 @@ data Request = Request Double
 
 simulate :: Input -> Simulation Output
 simulate input = runEventInStartTime $ do
-  failChances <- cascadeSMO input
+  outputs <- cascadeSMO input
   liftSimulation $ runEventInStopTime $ do
-    failChances' <- failChances
-    return $ Output failChances' input
+    combineOutputs (emptyOutput input) <$> outputs
     
-cascadeSMO :: Input -> Event (Event [Double])
+cascadeSMO :: Input -> Event (Event [PartialOutput])
 cascadeSMO input = do
   (terProc, termBuff) <- terminator
   liftSimulation $ runProcessInStartTime terProc
-  (firstBuff, failChances) <- foldM go (termBuff, []) $ reverse $ bufferCapacity input
+  (firstBuff, outputs) <- foldM go (termBuff, []) $ reverse $ bufferCapacity input
   genProc <- generator firstBuff
   liftSimulation $ runProcessInStartTime genProc
-  return $ sequence failChances
+  return $ sequence outputs
   where
   terminator :: Event (Process (), Buffer Request)
   terminator = withBuffer 1000000 $ \buffer-> forever $ do
@@ -41,12 +40,14 @@ cascadeSMO input = do
         liftEvent $ do 
           enqueueOrLost_ buffer $ Request timestamp
           
-  go :: (Buffer Request, [Event Double]) -> Int -> Event (Buffer Request, [Event Double])   
+  go :: 
+    (Buffer Request, [Event PartialOutput]) -> Int 
+    -> Event (Buffer Request, [Event PartialOutput])   
   go (nextBuffer, failChanceAcc) cap = do
     (b, fc) <- atomSMO input cap nextBuffer
     return $ (b, fc:failChanceAcc)
   
-atomSMO :: Input -> Int -> Buffer Request -> Event (Buffer Request, Event Double)
+atomSMO :: Input -> Int -> Buffer Request -> Event (Buffer Request, Event PartialOutput)
 atomSMO input buffCap nextBuffer = do 
   (processorProc, buffer) <- processor nextBuffer
   liftSimulation $ runProcessInStartTime processorProc
@@ -54,7 +55,10 @@ atomSMO input buffCap nextBuffer = do
         lostCount <- fromIntegral <$> enqueueLostCount buffer
         totalCount <- fromIntegral <$> enqueueCount buffer
         return $ lostCount / (lostCount + totalCount)
-  return (buffer, failChance)
+  let qSize = do
+        sizeStats <- queueCountStats buffer
+        return $ timingStatsMean sizeStats
+  return (buffer, PartialOutput <$> failChance <*> qSize)
   where
     processor :: Buffer Request -> Event (Process (), Buffer Request)
     processor outBuffer = withBuffer buffCap $ \buffer-> forever $ do
