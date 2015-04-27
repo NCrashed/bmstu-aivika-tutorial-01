@@ -49,69 +49,51 @@ cascadeSMO input = do
   
 atomSMO :: Input -> Int -> Buffer Request -> Event (Buffer Request, Event PartialOutput)
 atomSMO input buffCap nextBuffer = do 
+  processorTotalTime <- liftSimulation $ newVar 0
   processorOperationTime <- liftSimulation $ newRef 0
-  (processorProc, buffer) <- processor nextBuffer processorOperationTime
+  (processorProc, buffer) <- processor nextBuffer processorTotalTime processorOperationTime
   liftSimulation $ runProcessInStartTime processorProc
-  let failChance = do
-        lostCount <- fromIntegral <$> enqueueLostCount buffer
-        totalCount <- fromIntegral <$> enqueueCount buffer
-        return $! lostCount / (lostCount + totalCount)
-  let qSize = do
-        sizeStats <- queueCountStats buffer
-        return $! timingStatsMean sizeStats
-  let sLoad = do
-        operationTime <- readRef processorOperationTime
-        return $! operationTime / simulationTime input
-  return (buffer, PartialOutput <$> failChance <*> qSize <*> sLoad)
+  return (buffer, PartialOutput 
+    <$> failChance buffer
+    <*> qSize buffer
+    <*> sLoad processorOperationTime
+    <*> reqCount buffer processorOperationTime
+    <*> awaitTime buffer
+    <*> totalTime processorTotalTime
+    )
   where
-    processor :: Buffer Request -> Ref Double -> Event (Process (), Buffer Request)
-    processor outBuffer operationTimeVar = withBuffer buffCap $ \buffer-> forever $ do
-      r <- dequeue buffer
+    processor :: Buffer Request -> Var Double -> Ref Double -> Event (Process (), Buffer Request)
+    processor outBuffer totalTimeVar operationTimeVar = withBuffer buffCap $ \buffer-> forever $ do
+      r@(Request timestamp) <- dequeue buffer
       operationTime <- holdPositive $ processingDistribution input
+      currentTime <- liftDynamics time
       liftEvent $ do
+        writeVar totalTimeVar (currentTime - timestamp)
         modifyRef operationTimeVar (+operationTime)
         enqueueOrLost_ outBuffer r
-         
-{-
-simulate :: Input -> Simulation Output
-simulate input@Input{..} = runEventInStartTime $ do
-    processorTotalTime <- liftSimulation $ newVar 0
-    processorOperationTime <- liftSimulation $ newRef 0
-    (processorProc, buffer) <- processor processorTotalTime processorOperationTime
-    generatorProc <- generator buffer
-    liftSimulation $ do
-        runProcessInStartTime processorProc
-        runProcessInStartTime generatorProc
-        runEventInStopTime $ do
-           sizeStats <- queueCountStats buffer
-           lostCount <- fromIntegral <$> enqueueLostCount buffer
-           totalCount <- fromIntegral <$> enqueueCount buffer
-           awaiting <- queueWaitTime buffer
-           totalTimeStats <- statsFromVar processorTotalTime
-           operationTime <- readRef processorOperationTime
-           
-           let failChance' = lostCount / (lostCount + totalCount)
-               queueSize' = timingStatsMean sizeStats
-               systemLoad' = operationTime / simulationTime
-               requestsCount' = queueSize' + systemLoad'
-               awaitingTime' = samplingStatsMean awaiting
-               totalTime' = samplingStatsMean totalTimeStats
-           return $ Output failChance' queueSize' systemLoad' requestsCount' awaitingTime' totalTime' input
-    where
-    generator :: Buffer Request -> Event (Process ())
-    generator buffer = do
-        return $ forever $ do
-           htime <- holdByDistribution generationDistribution
-           when (htime >= 0) $ do
-               timestamp <- liftDynamics time
-               liftEvent $ do 
-                   enqueueOrLost_ buffer $ Request timestamp
-
-    processor :: Var Double -> Ref Double -> Event (Process (), Buffer Request)
-    processor totalTimeVar operationTimeVar = withBuffer bufferCapacity $ \buffer-> forever $ do
-       Request timestamp <- dequeue buffer
-       operationTime <- holdPositive processingDistribution
-       currentTime <- liftDynamics time
-       liftEvent $ do
-         writeVar totalTimeVar (currentTime - timestamp)
-         modifyRef operationTimeVar (+operationTime) -}
+        
+    failChance buffer = do
+      lostCount <- fromIntegral <$> enqueueLostCount buffer
+      totalCount <- fromIntegral <$> enqueueCount buffer
+      return $! lostCount / (lostCount + totalCount)
+      
+    qSize buffer = do
+      sizeStats <- queueCountStats buffer
+      return $! timingStatsMean sizeStats
+      
+    sLoad processorOperationTime = do
+      operationTime <- readRef processorOperationTime
+      return $! operationTime / simulationTime input
+      
+    reqCount buffer processorOperationTime = do
+      queueSize' <- qSize buffer
+      systemLoad' <- sLoad processorOperationTime
+      return $! queueSize' + systemLoad'
+      
+    awaitTime buffer = do
+      awaiting <- queueWaitTime buffer
+      return $! samplingStatsMean awaiting
+      
+    totalTime processorTotalTime = do
+      totalTimeStats <- statsFromVar processorTotalTime
+      return $! samplingStatsMean totalTimeStats
