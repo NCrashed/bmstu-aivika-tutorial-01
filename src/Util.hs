@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Util where
 
 import Simulation.Aivika
@@ -43,22 +44,22 @@ randomHyperExponential pairs = liftIO $ do
     mean <- evalRandT (fromList $ map (second toRational) pairs) rng
     return mean
 
-generationDistr :: String -> [Double] -> Parameter Double
-generationDistr "exponential" [meanTime] = randomExponential meanTime
+generationDistr :: String -> [Double] -> (String, Parameter Double)
+generationDistr "exponential" [meanTime] = ("exponential("++show meanTime++")", randomExponential meanTime)
 generationDistr "exponential" _ = error "Нужен 1 параметр экспоненциальному распределению"
-generationDistr "erlang" [theta, k] = do
+generationDistr "erlang" [theta, k] = ("erlang("++show theta++","++show k++")",) $ do
     let ki = floor k
     val <- randomErlang theta ki
     return $ val / fromIntegral ki
 generationDistr "erlang" _ = error "Нужно 2 параметра эрланговскому распределению: theta (плавающая запятая) и k (целочисленное)"
-generationDistr "normal" [mu, sigma] = randomNormal mu sigma
+generationDistr "normal" [mu, sigma] = ("normal("++show mu++","++show sigma++")", randomNormal mu sigma)
 generationDistr "normal" _ = error "Нужно 2 параметра нормальному распределению: mu (математическое ожидание) и sigma (дисперсия)"
-generationDistr "uniform" [minVal, maxVal] = randomUniform minVal maxVal
+generationDistr "uniform" [minVal, maxVal] = ("uniform"++show minVal++","++show maxVal++")", randomUniform minVal maxVal)
 generationDistr "uniform" _ = error "Нужно 2 параметра равномерному распределению: minVal (минимальное значение) и maxVal (максимальное значение)"
 generationDistr "hyperexponential" params 
     | length params `mod` 2 /= 0 = error "Необходимо четное количество параметров гиперэскпоненциального распределения: пара состоит из среднего времени и вероятности."
     | otherwise = if abs (sumSeconds - 1.0) < 0.001
-        then randomHyperExponential pairs
+        then ("hyperexponential("++show pairs++")", randomHyperExponential pairs)
         else error "Сумма вероятностей вариантов в гиперэкспоненциальном распределении не равна 1.0"
         where 
             pairs = makePairs params
