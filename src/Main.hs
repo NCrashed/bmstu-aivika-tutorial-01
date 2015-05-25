@@ -7,19 +7,15 @@ import Tabular
 import Varying
 
 -- | Входные параметры модели
-testInput :: Input
-testInput = Input {
+baseInput :: Input
+baseInput = Input {
     -- | Закон распределения потока заявок
     -- Указывается один из: exponential, erlang, normal, uniform
     -- каждому закону нужно указать список параметров
     -- для exponential нужен 1 параметр (среднее время между заявками)
     -- для других (erlang и т.д.) нужно по 2 параметра
     generationDistribution = generationDistr "erlang" [10, 2],
-    -- | Закон распределения обработки заявок в обслуживающем автомате
-    -- параметры аналогичны.
-    processingDistribution = generationDistr "erlang" [10, 2],
-    -- | Емкость буфферов
-    bufferCapacity = [3, 3, 3],
+    inputSystems = [],
     -- | Время иммитационного моделирования
     simulationTime = 500000.0,
     -- | Количество знаков после запятой в выводе результатов
@@ -27,8 +23,8 @@ testInput = Input {
 }
 
 main :: IO ()
-main = putStrLn.prettyPrintOutputs =<< simulateManyBuffers testInput
-    [ (generationDistr "erlang" [10, 2], generationDistr "erlang" [10, 2], [3, 3, 3])
-    , (generationDistr "erlang" [10, 2], generationDistr "erlang" [10, 2], [4, 3, 3])
-    , (generationDistr "erlang" [10, 2], generationDistr "erlang" [10, 2], [10, 3, 3])
+main = putStrLn.prettyPrintOutputs =<< simulateManyBuffers baseInput
+    [ (erlang2, [System erlang2 3, System erlang2 3, System erlang2 3])
     ] simulate  
+    where
+      erlang2 = generationDistr "erlang" [10, 2]

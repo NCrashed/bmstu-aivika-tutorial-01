@@ -21,7 +21,7 @@ cascadeSMO :: Input -> Event (Event [PartialOutput])
 cascadeSMO input = do
   (terProc, termBuff) <- terminator
   liftSimulation $ runProcessInStartTime terProc
-  (firstBuff, outputs) <- foldM go (termBuff, []) $ reverse $ bufferCapacity input
+  (firstBuff, outputs) <- foldM go (termBuff, []) $ reverse $ inputSystems input
   genProc <- generator firstBuff
   liftSimulation $ runProcessInStartTime genProc
   return $ sequence outputs
@@ -41,17 +41,17 @@ cascadeSMO input = do
           enqueueOrLost_ buffer $ Request timestamp
           
   go :: 
-    (Buffer Request, [Event PartialOutput]) -> Int 
+    (Buffer Request, [Event PartialOutput]) -> System 
     -> Event (Buffer Request, [Event PartialOutput])   
-  go (nextBuffer, failChanceAcc) cap = do
-    (b, fc) <- atomSMO input cap nextBuffer
+  go (nextBuffer, failChanceAcc) sys = do
+    (b, fc) <- atomSMO input sys nextBuffer
     return $ (b, fc:failChanceAcc)
   
-atomSMO :: Input -> Int -> Buffer Request -> Event (Buffer Request, Event PartialOutput)
-atomSMO input buffCap nextBuffer = do 
+atomSMO :: Input -> System -> Buffer Request -> Event (Buffer Request, Event PartialOutput)
+atomSMO input System{..} nextBuffer = do 
   processorTotalTime <- liftSimulation $ newVar 0
   processorOperationTime <- liftSimulation $ newRef 0
-  (processorProc, buffer) <- processor nextBuffer processorTotalTime processorOperationTime
+  (processorProc, buffer) <- processor (snd processingDistribution) nextBuffer processorTotalTime processorOperationTime
   liftSimulation $ runProcessInStartTime processorProc
   return (buffer, PartialOutput 
     <$> failChance buffer
@@ -62,10 +62,10 @@ atomSMO input buffCap nextBuffer = do
     <*> totalTime processorTotalTime
     )
   where
-    processor :: Buffer Request -> Var Double -> Ref Double -> Event (Process (), Buffer Request)
-    processor outBuffer totalTimeVar operationTimeVar = withBuffer buffCap $ \buffer-> forever $ do
+    processor :: Parameter Double -> Buffer Request -> Var Double -> Ref Double -> Event (Process (), Buffer Request)
+    processor processDistr outBuffer totalTimeVar operationTimeVar = withBuffer bufferCapacity $ \buffer-> forever $ do
       r@(Request timestamp) <- dequeue buffer
-      operationTime <- holdPositive $ snd $ processingDistribution input
+      operationTime <- holdPositive processDistr
       currentTime <- liftDynamics time
       liftEvent $ do
         writeVar totalTimeVar (currentTime - timestamp)

@@ -18,7 +18,7 @@ toTabular Output{..} = Table
     , "Общее время пребывания заявки в системе:"
     ]
   )
-  ( Group SingleLine $ Header . show <$> [1 .. length (bufferCapacity usedInput)]
+  ( Group SingleLine $ Header . show <$> [1 .. length (inputSystems usedInput)]
   )
   [
     failChances
@@ -33,7 +33,7 @@ toTabulars :: [Output] -> Table String String Double
 toTabulars outputs = Table 
   ( Group SingleLine $ rowLabels <$> outputs
   )
-  ( Group SingleLine $ Header . show <$> [1 .. length (bufferCapacity $ usedInput $ head outputs)]
+  ( Group SingleLine $ Header . show <$> [1 .. length (inputSystems $ usedInput $ head outputs)]
   )
   (concat $ outputContent <$> outputs)
   where 

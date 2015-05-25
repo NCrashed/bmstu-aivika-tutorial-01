@@ -5,17 +5,24 @@ import Text.Printf
 import Simulation.Aivika
 import Data.Functor
 
-data Input = Input {
-    generationDistribution :: (String, Parameter Double),
-    processingDistribution :: (String, Parameter Double),
-    bufferCapacity :: [Int],
-    simulationTime :: Double,
-    outputPrecision :: Int
+data System = System { 
+    processingDistribution :: (String, Parameter Double)
+  , bufferCapacity :: Int
 }
 
-instance Show Input where
-  show Input{..} = fst generationDistribution ++ "-" ++ fst processingDistribution ++ "-" ++ show bufferCapacity
+data Input = Input {
+    generationDistribution :: (String, Parameter Double)
+  , inputSystems :: [System]
+  , simulationTime :: Double
+  , outputPrecision :: Int
+}
+
+instance Show System where
+  show System{..} = fst processingDistribution ++ "-" ++ show bufferCapacity
   
+instance Show Input where
+  show Input{..} = fst generationDistribution ++ "-" ++ show inputSystems
+    
 data Output = Output {
     failChances :: [Double], -- ^ Вероятность отказа системы
     queueSizes :: [Double], -- ^ Средний размер буфера
