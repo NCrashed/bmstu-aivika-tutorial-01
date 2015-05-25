@@ -40,7 +40,7 @@ inputParser TokenParser{..} = do
         <*> (symbol "buffer" >> (fromInteger <$> natural))
       
     parseDisrt = choice [
-        erlangParser
+        try erlangParser
       , expParser
       , normalParser
       , uniformParser
