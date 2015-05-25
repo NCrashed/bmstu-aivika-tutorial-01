@@ -1,0 +1,17 @@
+experiment {
+  input erlang 10 2
+  subsystem {
+    processing erlang 10 2
+    buffer 3
+  }
+  subsystem {
+    processing erlang 10 2
+    buffer 3
+  }
+  subsystem {
+    processing erlang 10 2
+    buffer 4
+  }
+  simulation time 500000
+  output precision 5
+}
