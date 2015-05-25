@@ -5,6 +5,7 @@ import Tabular
 import Varying
 import Parser
 import System.Environment
+import System.IO 
 
 parseArgs :: IO (FilePath, FilePath)
 parseArgs = do 
@@ -24,5 +25,7 @@ main = do
       outputs <- simulateMany inputs simulate
       let str = prettyPrintOutputs outputs
       putStrLn str
-      writeFile outputPath str
+      withFile outputPath WriteMode $ \h -> do
+        hSetEncoding h utf8_bom
+        hPutStr h str
       putStrLn $ "Results were written to " ++ outputPath
